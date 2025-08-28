@@ -1,0 +1,16 @@
+{
+  "name": "youtube-downloader",
+  "version": "1.0.0",
+  "description": "YouTube video/audio downloader using RapidAPI",
+  "main": "index.html",
+  "scripts": {
+    "dev": "vercel dev",
+    "build": "echo 'Static build'",
+    "start": "vercel dev"
+  },
+  "dependencies": {},
+  "devDependencies": {},
+  "engines": {
+    "node": ">=18"
+  }
+}
