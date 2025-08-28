@@ -17,6 +17,15 @@ export default async function handler(req, res) {
   try {
     const { url, format } = req.body;
 
+    // Check if API key is available
+    if (!process.env.RAPIDAPI_KEY) {
+      console.error('RAPIDAPI_KEY environment variable not found');
+      return res.status(500).json({ error: 'Server configuration error: API key not found' });
+    }
+
+    console.log('API key available:', process.env.RAPIDAPI_KEY ? 'Yes' : 'No');
+    console.log('Request body:', { url, format });
+
     // Validate input
     if (!url || !format) {
       return res.status(400).json({ error: 'URL and format are required' });
@@ -68,9 +77,24 @@ export default async function handler(req, res) {
       });
     }
 
-    const data = await response.json();
-    console.log('API Response data:', data);
+    // Get response as text first to debug
+    const responseText = await response.text();
+    console.log('Raw API Response:', responseText);
 
+    // Try to parse as JSON
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error('JSON Parse Error:', parseError);
+      console.error('Response was:', responseText.substring(0, 500) + '...');
+      return res.status(500).json({ 
+        error: 'Invalid JSON response from API',
+        details: `Response: ${responseText.substring(0, 200)}...`
+      });
+    }
+
+    console.log('Parsed API Response data:', data);
     return res.status(200).json(data);
 
   } catch (error) {
