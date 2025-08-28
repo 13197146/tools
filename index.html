@@ -1,31 +1,294 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>YouTube Downloader</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Downloader</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 500px;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 2em;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 500;
+        }
+
+        input[type="url"], select {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e1e5e9;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: border-color 0.3s ease;
+        }
+
+        input[type="url"]:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        button {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 10px;
+            display: none;
+        }
+
+        .success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+
+        .error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+
+        .download-link {
+            display: inline-block;
+            margin-top: 10px;
+            padding: 10px 20px;
+            background: #28a745;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            transition: background 0.3s ease;
+        }
+
+        .download-link:hover {
+            background: #218838;
+        }
+
+        .url-examples {
+            margin-top: 10px;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .url-examples strong {
+            display: block;
+            margin-bottom: 5px;
+        }
+    </style>
 </head>
 <body>
-  <h2>YouTube Downloader</h2>
+    <div class="container">
+        <h1>🎵 YouTube Downloader</h1>
+        
+        <form id="downloadForm">
+            <div class="form-group">
+                <label for="youtubeUrl">YouTube URL:</label>
+                <input 
+                    type="url" 
+                    id="youtubeUrl" 
+                    name="youtubeUrl" 
+                    placeholder="https://www.youtube.com/watch?v=..." 
+                    required
+                >
+                <div class="url-examples">
+                    <strong>Supported formats:</strong>
+                    https://www.youtube.com/watch?v=VIDEO_ID<br>
+                    https://youtu.be/VIDEO_ID<br>
+                    https://youtube.com/embed/VIDEO_ID
+                </div>
+            </div>
 
-  <input type="text" id="url" placeholder="Enter YouTube URL" size="50">
-  <br><br>
+            <div class="form-group">
+                <label for="format">Format:</label>
+                <select id="format" name="format" required>
+                    <option value="">Select format</option>
+                    <option value="mp3">MP3 (Audio only)</option>
+                    <option value="m4a">M4A (Audio only)</option>
+                    <option value="mp4">MP4 (Video)</option>
+                </select>
+            </div>
 
-  <select id="format">
-    <option value="mp4">MP4</option>
-    <option value="m4a">M4A</option>
-    <option value="mp3">MP3</option>
-  </select>
+            <button type="submit" id="downloadBtn">Download</button>
+        </form>
 
-  <select id="quality">
-    <option value="720">720p</option>
-    <option value="360">360p</option>
-    <option value="128">128 kbps (audio)</option>
-  </select>
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Processing your request...</p>
+        </div>
 
-  <button id="downloadBtn">Download</button>
+        <div class="result" id="result"></div>
+    </div>
 
-  <div id="result"></div>
+    <script>
+        const form = document.getElementById('downloadForm');
+        const loadingDiv = document.getElementById('loading');
+        const resultDiv = document.getElementById('result');
+        const downloadBtn = document.getElementById('downloadBtn');
 
-  <script src="main.js"></script>
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const url = document.getElementById('youtubeUrl').value.trim();
+            const format = document.getElementById('format').value;
+
+            // Reset UI
+            resultDiv.style.display = 'none';
+            resultDiv.className = 'result';
+            resultDiv.innerHTML = '';
+            
+            // Show loading
+            loadingDiv.style.display = 'block';
+            downloadBtn.disabled = true;
+            downloadBtn.textContent = 'Processing...';
+
+            try {
+                console.log('Sending request with:', { url, format });
+
+                const response = await fetch('/api/download', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ url, format })
+                });
+
+                console.log('Response status:', response.status);
+
+                const data = await response.json();
+                console.log('Response data:', data);
+
+                if (!response.ok) {
+                    throw new Error(data.error || `HTTP error! status: ${response.status}`);
+                }
+
+                // Hide loading
+                loadingDiv.style.display = 'none';
+                
+                // Show success result
+                resultDiv.className = 'result success';
+                resultDiv.innerHTML = `
+                    <h3>✅ Success!</h3>
+                    <p><strong>Title:</strong> ${data.title || 'Unknown'}</p>
+                    <p><strong>Duration:</strong> ${data.duration || 'Unknown'}</p>
+                    ${data.download_url ? 
+                        `<a href="${data.download_url}" class="download-link" download>📥 Download ${format.toUpperCase()}</a>` : 
+                        '<p>⚠️ Download URL not available in response</p>'
+                    }
+                    <details style="margin-top: 10px;">
+                        <summary style="cursor: pointer;">Show raw response</summary>
+                        <pre style="background: #f8f9fa; padding: 10px; border-radius: 5px; overflow-x: auto; font-size: 12px;">${JSON.stringify(data, null, 2)}</pre>
+                    </details>
+                `;
+                resultDiv.style.display = 'block';
+
+            } catch (error) {
+                console.error('Error:', error);
+                
+                // Hide loading
+                loadingDiv.style.display = 'none';
+                
+                // Show error result
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = `
+                    <h3>❌ Error</h3>
+                    <p>${error.message}</p>
+                    <p>Please check the console for more details.</p>
+                `;
+                resultDiv.style.display = 'block';
+            } finally {
+                // Reset button
+                downloadBtn.disabled = false;
+                downloadBtn.textContent = 'Download';
+            }
+        });
+
+        // Auto-detect and clean YouTube URLs
+        document.getElementById('youtubeUrl').addEventListener('input', (e) => {
+            let url = e.target.value.trim();
+            
+            // If user pastes just a video ID, convert it to full URL
+            if (url.match(/^[a-zA-Z0-9_-]{11}$/)) {
+                e.target.value = `https://www.youtube.com/watch?v=${url}`;
+            }
+        });
+    </script>
 </body>
 </html>
