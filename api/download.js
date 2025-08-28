@@ -83,13 +83,10 @@ export default async function handler(req, res) {
     });
 
     console.log('📡 API Response status:', response.status);
-    console.log('📡 API Response headers:', Object.fromEntries(response.headers.entries()));
 
-    // Get response as text first
     const responseText = await response.text();
     console.log('📄 Raw response (first 500 chars):', responseText.substring(0, 500));
 
-    // Check if response is successful
     if (!response.ok) {
       console.error('❌ API request failed');
       return res.status(response.status).json({
@@ -103,7 +100,6 @@ export default async function handler(req, res) {
     try {
       apiData = JSON.parse(responseText);
       console.log('✅ Successfully parsed JSON response');
-      console.log('📊 Response data keys:', Object.keys(apiData));
     } catch (parseError) {
       console.error('❌ Failed to parse JSON:', parseError.message);
       return res.status(500).json({
@@ -112,12 +108,24 @@ export default async function handler(req, res) {
       });
     }
 
-    // Log successful response
-    console.log('🎉 API call successful');
-    console.log('=== API Request Completed ===');
+    // Extract first valid download link
+    if (!apiData || !apiData.links || !apiData.links.length) {
+      console.error('❌ No download links found in API response');
+      return res.status(404).json({
+        error: 'Download link not available',
+        details: apiData
+      });
+    }
 
-    // Return the data
-    return res.status(200).json(apiData);
+    const downloadUrl = apiData.links[0].url;
+    console.log('✅ Found download URL:', downloadUrl);
+
+    // Return simplified response
+    return res.status(200).json({
+      title: apiData.title || 'Unknown',
+      link: downloadUrl,
+      format
+    });
 
   } catch (error) {
     console.error('💥 Server error:', error);
@@ -133,15 +141,10 @@ function extractVideoId(url) {
   if (!url) return null;
 
   const patterns = [
-    // Standard youtube.com URLs
     /(?:https?:\/\/)?(?:www\.)?youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})/,
-    // Shortened youtu.be URLs
     /(?:https?:\/\/)?youtu\.be\/([a-zA-Z0-9_-]{11})/,
-    // Embed URLs
     /(?:https?:\/\/)?(?:www\.)?youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/,
-    // Mobile URLs
     /(?:https?:\/\/)?(?:m\.)?youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})/,
-    // Just the video ID
     /^([a-zA-Z0-9_-]{11})$/
   ];
 
