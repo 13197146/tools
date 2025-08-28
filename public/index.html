@@ -1,53 +1,313 @@
-<script>
-    let selectedFiles = {};
-    const API_BASE = '/api'; // Vercel serverless functions
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>PDF & Document Tools - Production</title>
 
-    // Initialize drag and drop for all file inputs
-    document.addEventListener('DOMContentLoaded', function() {
+    <!-- Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+    <style>
+        /* (original styling kept) */
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg,#667eea 0%,#764ba2 100%); min-height:100vh; padding:20px; }
+        .container { max-width:1200px; margin:0 auto; background: rgba(255,255,255,0.95); border-radius:20px; box-shadow:0 20px 40px rgba(0,0,0,0.1); backdrop-filter: blur(10px); overflow:hidden; }
+        .header { background: linear-gradient(135deg,#1e3c72 0%,#2a5298 100%); color:white; padding:30px; text-align:center; }
+        .header h1 { font-size:2.5em; margin-bottom:10px; font-weight:700; }
+        .header p { opacity:0.9; font-size:1.1em; }
+        .processing-badge { background: rgba(255,255,255,0.2); padding:8px 16px; border-radius:20px; margin-top:10px; font-size:0.9em; display:inline-block; }
+        .tools-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(300px,1fr)); gap:20px; padding:30px; }
+        .tool-card { background:white; border-radius:15px; padding:25px; box-shadow:0 10px 25px rgba(0,0,0,0.05); border:2px solid transparent; transition:all 0.3s ease; cursor:pointer; position:relative; overflow:hidden; }
+        .tool-card::before { content:''; position:absolute; top:0; left:0; right:0; height:4px; background: linear-gradient(90deg,#667eea,#764ba2); }
+        .tool-card.client-side::before { background: linear-gradient(90deg,#28a745,#20c997); }
+        .tool-card.server-side::before { background: linear-gradient(90deg,#fd7e14,#ffc107); }
+        .tool-card:hover { transform:translateY(-5px); box-shadow:0 20px 40px rgba(0,0,0,0.1); border-color:#667eea; }
+        .processing-type { position:absolute; top:10px; right:10px; padding:4px 8px; border-radius:12px; font-size:0.7em; font-weight:600; text-transform:uppercase; }
+        .client-side .processing-type { background:#28a745; color:white; }
+        .server-side .processing-type { background:#fd7e14; color:white; }
+        .tool-icon { width:60px; height:60px; background:linear-gradient(135deg,#667eea,#764ba2); border-radius:15px; display:flex; align-items:center; justify-content:center; margin-bottom:20px; font-size:24px; color:white; }
+        .tool-title { font-size:1.4em; font-weight:600; color:#333; margin-bottom:10px; }
+        .tool-description { color:#666; margin-bottom:20px; line-height:1.5; }
+        .file-input-wrapper { position:relative; margin-bottom:15px; }
+        .file-input { width:100%; padding:12px; border:2px dashed #ddd; border-radius:10px; text-align:center; cursor:pointer; transition:all 0.3s ease; background:#f8f9fa; min-height:50px; display:flex; align-items:center; justify-content:center; }
+        .file-input:hover { border-color:#667eea; background:#f0f4ff; }
+        .file-input.dragover { border-color:#28a745; background:#f8fff8; transform:scale(1.02); }
+        .file-input input { display:none; }
+        .process-btn { width:100%; padding:12px 20px; background:linear-gradient(135deg,#667eea,#764ba2); color:white; border:none; border-radius:10px; font-size:1em; font-weight:600; cursor:pointer; transition:all 0.3s ease; opacity:0.7; pointer-events:none; }
+        .process-btn:enabled { opacity:1; pointer-events:auto; }
+        .process-btn:hover:enabled { transform:translateY(-2px); box-shadow:0 5px 15px rgba(102,126,234,0.4); }
+        .process-btn.processing { background:#6c757d; cursor:not-allowed; }
+        .progress-bar { width:100%; height:8px; background:#e9ecef; border-radius:4px; overflow:hidden; margin:15px 0; display:none; }
+        .progress-fill { height:100%; background: linear-gradient(90deg,#28a745,#20c997); width:0%; transition: width 0.3s ease; position:relative; }
+        .progress-fill::after { content:''; position:absolute; top:0; left:0; bottom:0; right:0; background: linear-gradient(90deg,transparent, rgba(255,255,255,0.3), transparent); animation: progress-shine 2s infinite; }
+        @keyframes progress-shine { 0% { transform:translateX(-100%);} 100% { transform:translateX(100%);} }
+        .file-info { background:#f8f9fa; padding:12px 15px; border-radius:8px; margin:10px 0; display:none; font-size:0.9em; color:#555; border-left:4px solid #667eea; }
+        .file-list { max-height:200px; overflow-y:auto; border:1px solid #ddd; border-radius:8px; padding:10px; margin:10px 0; background:#fafafa; }
+        .file-item { display:flex; justify-content:space-between; align-items:center; padding:8px 12px; margin:5px 0; background:white; border-radius:6px; border:1px solid #eee; }
+        .file-item:hover { border-color:#667eea; }
+        .remove-btn { background:#dc3545; color:white; border:none; border-radius:4px; padding:4px 8px; font-size:0.8em; cursor:pointer; transition:all 0.2s ease; }
+        .remove-btn:hover { background:#c82333; transform:scale(1.05); }
+        .notification { position:fixed; top:20px; right:20px; padding:15px 20px; border-radius:10px; color:white; font-weight:600; z-index:1000; transform:translateX(100%); transition:transform 0.3s ease; box-shadow:0 10px 25px rgba(0,0,0,0.2); max-width:350px; }
+        .notification.show { transform:translateX(0); }
+        .notification.success { background: linear-gradient(135deg,#28a745,#20c997); }
+        .notification.error { background: linear-gradient(135deg,#dc3545,#e74c3c); }
+        .notification.info { background: linear-gradient(135deg,#17a2b8,#138496); }
+        .password-input { width:100%; padding:12px; margin:10px 0; border:2px solid #ddd; border-radius:8px; font-size:1em; transition:border-color 0.3s ease; }
+        .password-input:focus { outline:none; border-color:#667eea; box-shadow:0 0 0 3px rgba(102,126,234,0.1); }
+        .error-message { background:#f8d7da; color:#721c24; padding:10px; border-radius:6px; margin:10px 0; display:none; border-left:4px solid #dc3545; }
+        @media (max-width:768px) { .tools-grid { grid-template-columns:1fr; padding:20px; } .header h1 { font-size:2em; } .container { margin:10px; border-radius:15px; } .notification { right:10px; max-width:calc(100vw - 40px); } }
+        .cpu-usage { position:fixed; bottom:20px; right:20px; background:rgba(0,0,0,0.8); color:white; padding:10px 15px; border-radius:8px; font-size:0.9em; display:none; z-index:999; }
+        .loading-spinner { width:20px; height:20px; border:2px solid #ffffff40; border-top:2px solid #ffffff; border-radius:50%; animation:spin 1s linear infinite; display:inline-block; margin-right:8px; }
+        @keyframes spin { 0% { transform:rotate(0deg);} 100% { transform:rotate(360deg);} }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>PDF & Document Tools</h1>
+            <p>Professional document processing with client-side and server-side capabilities</p>
+            <div class="processing-badge">⚡ Client CPU + Vercel Serverless</div>
+        </div>
+
+        <div class="tools-grid">
+            <!-- PDF Operations (Client-side) -->
+            <div class="tool-card client-side" data-tool="merge-pdf">
+                <div class="processing-type">Client</div>
+                <div class="tool-icon">📚</div>
+                <div class="tool-title">Merge PDFs</div>
+                <div class="tool-description">Combine multiple PDF files using your browser's processing power</div>
+                <div class="file-input-wrapper">
+                    <div class="file-input" onclick="this.querySelector('input').click()">
+                        <input type="file" accept=".pdf" multiple onchange="handleFileSelect(this, 'merge-pdf')">
+                        <span>📁 Select PDF files to merge</span>
+                    </div>
+                </div>
+                <div class="file-list"></div>
+                <div class="progress-bar"><div class="progress-fill"></div></div>
+                <button class="process-btn" onclick="processFile('merge-pdf')">Merge PDFs</button>
+            </div>
+
+            <div class="tool-card client-side" data-tool="split-pdf">
+                <div class="processing-type">Client</div>
+                <div class="tool-icon">✂️</div>
+                <div class="tool-title">Split PDF</div>
+                <div class="tool-description">Extract pages or split PDF into multiple files</div>
+                <div class="file-input-wrapper">
+                    <div class="file-input" onclick="this.querySelector('input').click()">
+                        <input type="file" accept=".pdf" onchange="handleFileSelect(this, 'split-pdf')">
+                        <span>📄 Select PDF to split</span>
+                    </div>
+                </div>
+                <div class="file-info"></div>
+                <div class="progress-bar"><div class="progress-fill"></div></div>
+                <button class="process-btn" onclick="processFile('split-pdf')">Split PDF</button>
+            </div>
+
+            <div class="tool-card client-side" data-tool="compress-pdf">
+                <div class="processing-type">Client</div>
+                <div class="tool-icon">🗜️</div>
+                <div class="tool-title">Compress PDF</div>
+                <div class="tool-description">Reduce file size by optimizing PDF structure (best-effort)</div>
+                <div class="file-input-wrapper">
+                    <div class="file-input" onclick="this.querySelector('input').click()">
+                        <input type="file" accept=".pdf" onchange="handleFileSelect(this, 'compress-pdf')">
+                        <span>📄 Select PDF to compress</span>
+                    </div>
+                </div>
+                <div class="file-info"></div>
+                <div class="progress-bar"><div class="progress-fill"></div></div>
+                <button class="process-btn" onclick="processFile('compress-pdf')">Compress PDF</button>
+            </div>
+
+            <div class="tool-card client-side" data-tool="unlock-pdf">
+                <div class="processing-type">Client</div>
+                <div class="tool-icon">🔓</div>
+                <div class="tool-title">Unlock PDF</div>
+                <div class="tool-description">Remove password protection from PDF files (server recommended)</div>
+                <div class="file-input-wrapper">
+                    <div class="file-input" onclick="this.querySelector('input').click()">
+                        <input type="file" accept=".pdf" onchange="handleFileSelect(this, 'unlock-pdf')">
+                        <span>🔒 Select protected PDF</span>
+                    </div>
+                </div>
+                <input type="password" class="password-input" placeholder="Enter PDF password">
+                <div class="file-info"></div>
+                <div class="error-message"></div>
+                <div class="progress-bar"><div class="progress-fill"></div></div>
+                <button class="process-btn" onclick="processFile('unlock-pdf')">Unlock PDF (server)</button>
+            </div>
+
+            <div class="tool-card client-side" data-tool="lock-pdf">
+                <div class="processing-type">Client</div>
+                <div class="tool-icon">🔒</div>
+                <div class="tool-title">Lock PDF</div>
+                <div class="tool-description">Add password protection to secure your PDFs (server recommended)</div>
+                <div class="file-input-wrapper">
+                    <div class="file-input" onclick="this.querySelector('input').click()">
+                        <input type="file" accept=".pdf" onchange="handleFileSelect(this, 'lock-pdf')">
+                        <span>📄 Select PDF to protect</span>
+                    </div>
+                </div>
+                <input type="password" class="password-input" placeholder="Set new password">
+                <div class="file-info"></div>
+                <div class="progress-bar"><div class="progress-fill"></div></div>
+                <button class="process-btn" onclick="processFile('lock-pdf')">Lock PDF (server)</button>
+            </div>
+
+            <!-- Document Conversions (Server-side) -->
+            <div class="tool-card server-side" data-tool="word-to-pdf">
+                <div class="processing-type">Server</div>
+                <div class="tool-icon">📄</div>
+                <div class="tool-title">Word → PDF</div>
+                <div class="tool-description">Convert Word documents using Vercel serverless functions</div>
+                <div class="file-input-wrapper">
+                    <div class="file-input" onclick="this.querySelector('input').click()">
+                        <input type="file" accept=".doc,.docx" onchange="handleFileSelect(this, 'word-to-pdf')">
+                        <span>📝 Select Word document</span>
+                    </div>
+                </div>
+                <div class="file-info"></div>
+                <div class="progress-bar"><div class="progress-fill"></div></div>
+                <button class="process-btn" onclick="processFile('word-to-pdf')">Convert to PDF</button>
+            </div>
+
+            <div class="tool-card server-side" data-tool="excel-to-pdf">
+                <div class="processing-type">Server</div>
+                <div class="tool-icon">📊</div>
+                <div class="tool-title">Excel → PDF</div>
+                <div class="tool-description">Convert spreadsheets with server-side processing</div>
+                <div class="file-input-wrapper">
+                    <div class="file-input" onclick="this.querySelector('input').click()">
+                        <input type="file" accept=".xls,.xlsx" onchange="handleFileSelect(this, 'excel-to-pdf')">
+                        <span>📈 Select Excel file</span>
+                    </div>
+                </div>
+                <div class="file-info"></div>
+                <div class="progress-bar"><div class="progress-fill"></div></div>
+                <button class="process-btn" onclick="processFile('excel-to-pdf')">Convert to PDF</button>
+            </div>
+
+            <div class="tool-card server-side" data-tool="pdf-to-word">
+                <div class="processing-type">Server</div>
+                <div class="tool-icon">📝</div>
+                <div class="tool-title">PDF → Word</div>
+                <div class="tool-description">Extract and convert PDF content to editable Word</div>
+                <div class="file-input-wrapper">
+                    <div class="file-input" onclick="this.querySelector('input').click()">
+                        <input type="file" accept=".pdf" onchange="handleFileSelect(this, 'pdf-to-word')">
+                        <span>📄 Select PDF file</span>
+                    </div>
+                </div>
+                <div class="file-info"></div>
+                <div class="progress-bar"><div class="progress-fill"></div></div>
+                <button class="process-btn" onclick="processFile('pdf-to-word')">Convert to Word</button>
+            </div>
+
+            <div class="tool-card server-side" data-tool="pdf-to-excel">
+                <div class="processing-type">Server</div>
+                <div class="tool-icon">📈</div>
+                <div class="tool-title">PDF → Excel</div>
+                <div class="tool-description">Extract tables and data to Excel format</div>
+                <div class="file-input-wrapper">
+                    <div class="file-input" onclick="this.querySelector('input').click()">
+                        <input type="file" accept=".pdf" onchange="handleFileSelect(this, 'pdf-to-excel')">
+                        <span>📄 Select PDF file</span>
+                    </div>
+                </div>
+                <div class="file-info"></div>
+                <div class="progress-bar"><div class="progress-fill"></div></div>
+                <button class="process-btn" onclick="processFile('pdf-to-excel')">Convert to Excel</button>
+            </div>
+
+            <div class="tool-card client-side" data-tool="jpg-to-pdf">
+                <div class="processing-type">Client</div>
+                <div class="tool-icon">🖼️</div>
+                <div class="tool-title">Images → PDF</div>
+                <div class="tool-description">Create PDF from images using browser processing</div>
+                <div class="file-input-wrapper">
+                    <div class="file-input" onclick="this.querySelector('input').click()">
+                        <input type="file" accept=".jpg,.jpeg,.png,.gif,.bmp,.webp" multiple onchange="handleFileSelect(this, 'jpg-to-pdf')">
+                        <span>🖼️ Select images</span>
+                    </div>
+                </div>
+                <div class="file-info"></div>
+                <div class="progress-bar"><div class="progress-fill"></div></div>
+                <button class="process-btn" onclick="processFile('jpg-to-pdf')">Create PDF</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="cpu-usage" id="cpuUsage">
+        <div class="loading-spinner"></div>
+        Processing on your device...
+    </div>
+
+    <script>
+    'use strict';
+
+    /************************************************************************
+     * Complete client-side JS for:
+     * - merge-pdf (client)
+     * - split-pdf (client)
+     * - compress-pdf (best-effort, client)
+     * - jpg-to-pdf (client)
+     *
+     * Server-side flow is implemented as a simple POST to /api/<tool>.
+     * Your serverless (Vercel) functions should accept multipart/form-data
+     * and return the processed file as the response (with X-Filename header optional).
+     ************************************************************************/
+
+    let selectedFiles = {};
+    const API_BASE = '/api'; // adjust if your serverless endpoints are elsewhere
+
+    // Initialize drag and drop
+    document.addEventListener('DOMContentLoaded', () => {
         initializeDragAndDrop();
-        showNotification('Ready! Client-side processing uses your CPU, server-side uses Vercel.', 'info');
+        showNotification('Ready! Client-side processing uses your CPU, server-side uses Vercel.', 'info', 2200);
+
+        // Ensure buttons disabled initially
+        document.querySelectorAll('.process-btn').forEach(btn => {
+            btn.disabled = true;
+        });
     });
 
     function initializeDragAndDrop() {
         const fileInputs = document.querySelectorAll('.file-input');
-        
-        fileInputs.forEach(input => {
-            input.addEventListener('dragover', (e) => {
+
+        fileInputs.forEach(wrapper => {
+            const fileInput = wrapper.querySelector('input');
+
+            wrapper.addEventListener('dragover', (e) => {
                 e.preventDefault();
-                input.classList.add('dragover');
+                wrapper.classList.add('dragover');
             });
-            
-            input.addEventListener('dragleave', (e) => {
+
+            wrapper.addEventListener('dragleave', (e) => {
                 e.preventDefault();
-                input.classList.remove('dragover');
+                wrapper.classList.remove('dragover');
             });
-            
-            input.addEventListener('drop', (e) => {
+
+            wrapper.addEventListener('drop', (e) => {
                 e.preventDefault();
-                input.classList.remove('dragover');
-                
-                const files = Array.from(e.dataTransfer.files);
-                const fileInput = input.querySelector('input');
-                const toolType = input.closest('.tool-card').dataset.tool;
-                
-                // Validate file types
-                const validFiles = validateFileTypes(files, toolType);
-                if (validFiles.length === 0) {
+                wrapper.classList.remove('dragover');
+                const files = Array.from(e.dataTransfer.files || []);
+                if (!files.length) return;
+                const toolType = wrapper.closest('.tool-card').dataset.tool;
+                const valid = validateFileTypes(files, toolType);
+                if (!valid.length) {
                     showNotification('No valid files dropped for that tool.', 'error');
                     return;
                 }
-                
-                // Set files to input element (for single file inputs)
-                if (!fileInput.multiple && validFiles.length > 0) {
-                    const dt = new DataTransfer();
-                    dt.items.add(validFiles[0]);
-                    fileInput.files = dt.files;
-                } else if (fileInput.multiple) {
-                    const dt = new DataTransfer();
-                    validFiles.forEach(file => dt.items.add(file));
-                    fileInput.files = dt.files;
+                // set fileInput.files
+                const dt = new DataTransfer();
+                if (fileInput.multiple) {
+                    valid.forEach(f => dt.items.add(f));
+                } else {
+                    dt.items.add(valid[0]);
                 }
-                
+                fileInput.files = dt.files;
                 handleFileSelect(fileInput, toolType);
             });
         });
@@ -66,38 +326,36 @@
             'unlock-pdf': ['.pdf'],
             'lock-pdf': ['.pdf']
         };
-
-        const acceptedExts = acceptMap[toolType] || [];
+        const accepted = acceptMap[toolType] || [];
         return files.filter(file => {
-            const ext = '.' + file.name.split('.').pop().toLowerCase();
-            return acceptedExts.includes(ext);
+            const ext = '.' + (file.name.split('.').pop() || '').toLowerCase();
+            return accepted.includes(ext);
         });
     }
 
-    function handleFileSelect(input, toolType) {
-        const files = Array.from(input.files);
+    function handleFileSelect(inputElem, toolType) {
+        const files = Array.from(inputElem.files || []);
+        if (!files.length) return;
+
         const toolCard = document.querySelector(`[data-tool="${toolType}"]`);
         const fileInfo = toolCard.querySelector('.file-info');
         const processBtn = toolCard.querySelector('.process-btn');
-        const fileInputDisplay = toolCard.querySelector('.file-input span');
-        
-        if (files.length === 0) return;
-        
-        // Validate files
+        const display = toolCard.querySelector('.file-input span');
+
         const validFiles = validateFileTypes(files, toolType);
-        if (validFiles.length === 0) {
-            showNotification('Invalid file type! Please select the correct format.', 'error');
+        if (!validFiles.length) {
+            showNotification('Invalid file type! Please select correct file format(s).', 'error');
             return;
         }
 
         selectedFiles[toolType] = validFiles;
-        
+
         if (toolType === 'merge-pdf') {
             updateMergeFileList(toolCard, validFiles);
         } else {
-            updateFileInfo(fileInfo, fileInputDisplay, validFiles);
+            updateFileInfo(fileInfo, display, validFiles);
         }
-        
+
         fileInfo.style.display = 'block';
         processBtn.disabled = false;
         processBtn.style.opacity = '1';
@@ -107,307 +365,270 @@
     function updateFileInfo(fileInfo, fileInputDisplay, files) {
         if (files.length === 1) {
             const file = files[0];
-            const size = (file.size / 1024 / 1024).toFixed(2);
-            fileInfo.innerHTML = `
-                <div><strong>📁 ${file.name}</strong></div>
-                <div>📊 Size: ${size} MB | Type: ${file.type || 'Unknown'}</div>
-            `;
+            const size = bytesToSize(file.size);
+            fileInfo.innerHTML = `<div><strong>📁 ${file.name}</strong></div><div>📊 Size: ${size} | Type: ${file.type || 'Unknown'}</div>`;
             fileInputDisplay.innerHTML = `✅ ${file.name}`;
         } else {
-            const totalSize = files.reduce((sum, file) => sum + file.size, 0) / 1024 / 1024;
-            fileInfo.innerHTML = `
-                <div><strong>📁 ${files.length} files selected</strong></div>
-                <div>📊 Total size: ${totalSize.toFixed(2)} MB</div>
-            `;
+            const totalSize = files.reduce((s, f) => s + f.size, 0);
+            fileInfo.innerHTML = `<div><strong>📁 ${files.length} files selected</strong></div><div>📊 Total size: ${bytesToSize(totalSize)}</div>`;
             fileInputDisplay.innerHTML = `✅ ${files.length} files selected`;
         }
     }
 
     function updateMergeFileList(toolCard, files) {
         const fileList = toolCard.querySelector('.file-list');
-        const fileInputDisplay = toolCard.querySelector('.file-input span');
+        const display = toolCard.querySelector('.file-input span');
         fileList.innerHTML = '';
-        
-        files.forEach((file, index) => {
-            const fileItem = document.createElement('div');
-            fileItem.className = 'file-item';
-            const size = (file.size / 1024 / 1024).toFixed(2);
-            fileItem.innerHTML = `
-                <div>
-                    <div><strong>📄 ${file.name}</strong></div>
-                    <div style="font-size: 0.8em; color: #666;">${size} MB</div>
-                </div>
-                <button class="remove-btn" onclick="removeFile('merge-pdf', ${index})">Remove</button>
-            `;
-            fileList.appendChild(fileItem);
+        files.forEach((file, idx) => {
+            const size = bytesToSize(file.size);
+            const item = document.createElement('div');
+            item.className = 'file-item';
+            item.innerHTML = `<div><div><strong>📄 ${escapeHtml(file.name)}</strong></div><div style="font-size:0.8em;color:#666;">${size}</div></div>
+                              <button class="remove-btn" onclick="removeFile('merge-pdf', ${idx})">Remove</button>`;
+            fileList.appendChild(item);
         });
-        
-        fileInputDisplay.innerHTML = `✅ ${files.length} PDF files ready to merge`;
+        display.innerHTML = `✅ ${files.length} PDF files ready to merge`;
     }
 
+    // Called from inline onclick in merge file items
     function removeFile(toolType, index) {
-        if (selectedFiles[toolType]) {
-            selectedFiles[toolType].splice(index, 1);
-            const toolCard = document.querySelector(`[data-tool="${toolType}"]`);
-            
-            if (selectedFiles[toolType].length === 0) {
-                const processBtn = toolCard.querySelector('.process-btn');
-                const fileInfo = toolCard.querySelector('.file-info');
-                processBtn.disabled = true;
-                processBtn.style.opacity = '0.7';
-                processBtn.style.pointerEvents = 'none';
-                fileInfo.style.display = 'none';
-            } else {
-                updateMergeFileList(toolCard, selectedFiles[toolType]);
-            }
+        if (!selectedFiles[toolType]) return;
+        selectedFiles[toolType].splice(index, 1);
+        const toolCard = document.querySelector(`[data-tool="${toolType}"]`);
+        if (!selectedFiles[toolType].length) {
+            const processBtn = toolCard.querySelector('.process-btn');
+            const fileInfo = toolCard.querySelector('.file-info');
+            processBtn.disabled = true;
+            processBtn.style.opacity = '0.7';
+            processBtn.style.pointerEvents = 'none';
+            fileInfo.style.display = 'none';
+            const display = toolCard.querySelector('.file-input span');
+            display.innerHTML = `📁 Select PDF files to merge`;
+            toolCard.querySelector('.file-list').innerHTML = '';
+        } else {
+            updateMergeFileList(toolCard, selectedFiles[toolType]);
         }
     }
 
     async function processFile(toolType) {
         const toolCard = document.querySelector(`[data-tool="${toolType}"]`);
         const files = selectedFiles[toolType];
-        
-        if (!files || files.length === 0) {
+        if (!files || !files.length) {
             showNotification('Please select files first!', 'error');
             return;
         }
-
         const isClientSide = toolCard.classList.contains('client-side');
-        
+
         try {
             if (isClientSide) {
                 await processClientSide(toolType, files, toolCard);
             } else {
                 await processServerSide(toolType, files, toolCard);
             }
-        } catch (error) {
-            console.error('Processing error:', error);
+        } catch (err) {
+            console.error(err);
             hideProgress(toolCard);
-            showNotification(`Error: ${error.message}`, 'error');
+            showNotification('Error: ' + (err.message || err), 'error');
         }
     }
 
+    // CLIENT-SIDE PROCESSING
     async function processClientSide(toolType, files, toolCard) {
         showProgress(toolCard, 'Processing on your device...');
         document.getElementById('cpuUsage').style.display = 'block';
+        toolCard.querySelector('.process-btn').classList.add('processing');
 
         try {
-            let resultBlob;
+            let blob, count=0;
             switch (toolType) {
                 case 'merge-pdf':
-                    resultBlob = await mergePDFs(files, toolCard);
-                    downloadBlob(resultBlob, 'merged.pdf');
-                    showNotification('Merged PDF ready for download.', 'success');
+                    blob = await mergePDFs(files, toolCard);
+                    downloadBlob(blob, 'merged.pdf');
+                    showNotification('Merged PDF ready.', 'success');
                     break;
                 case 'split-pdf':
                     await splitPDF(files[0], toolCard);
-                    showNotification('Split PDFs downloaded.', 'success');
+                    showNotification('Split pages downloaded.', 'success');
                     break;
                 case 'compress-pdf':
-                    resultBlob = await compressPDF(files[0], toolCard);
-                    if (resultBlob) {
-                        downloadBlob(resultBlob, appendSuffix(files[0].name, '-compressed.pdf'));
-                        showNotification('Compressed PDF ready for download (best-effort).', 'success');
+                    blob = await compressPDF(files[0], toolCard);
+                    if (blob) {
+                        const name = appendSuffix(files[0].name, '-compressed.pdf');
+                        downloadBlob(blob, name);
+                        showNotification('Compression finished (best-effort).', 'success');
                     }
                     break;
-                case 'unlock-pdf':
-                    // Client-side unlocking (decryption) isn't reliably supported by pdf-lib.
-                    showNotification('Client-side unlock not supported. Use server-side function.', 'error');
-                    break;
-                case 'lock-pdf':
-                    showNotification('Client-side locking (adding password) is not implemented in this client example. Use server-side.', 'error');
-                    break;
                 case 'jpg-to-pdf':
-                    resultBlob = await imagesToPDF(files, toolCard);
-                    downloadBlob(resultBlob, 'images.pdf');
-                    showNotification('PDF created from images.', 'success');
+                    blob = await imagesToPDF(files, toolCard);
+                    downloadBlob(blob, appendSuffix('images','') === 'images' ? 'images.pdf' : 'images.pdf');
+                    showNotification('Images → PDF created.', 'success');
                     break;
                 default:
-                    showNotification('Tool not implemented client-side.', 'error');
+                    showNotification('Tool not available client-side. Use server option.', 'info');
             }
         } finally {
             hideProgress(toolCard);
             document.getElementById('cpuUsage').style.display = 'none';
+            toolCard.querySelector('.process-btn').classList.remove('processing');
         }
     }
 
+    // SERVER-SIDE (stub flow) - POST to /api/<tool>
     async function processServerSide(toolType, files, toolCard) {
         showProgress(toolCard, 'Uploading to serverless function...');
         const endpoint = `${API_BASE}/${toolType}`;
         const form = new FormData();
-        files.forEach((file, i) => form.append('file' + i, file, file.name));
-
-        // include password if unlock/lock
-        if (toolType === 'unlock-pdf' || toolType === 'lock-pdf') {
-            const pwd = toolCard.querySelector('.password-input') ? toolCard.querySelector('.password-input').value : '';
-            form.append('password', pwd);
-        }
+        files.forEach((f, i) => form.append('file' + i, f, f.name));
+        // include password if present
+        const pwdInput = toolCard.querySelector('.password-input');
+        if (pwdInput) form.append('password', pwdInput.value || '');
 
         try {
-            const resp = await fetch(endpoint, {
-                method: 'POST',
-                body: form
-            });
-
-            if (!resp.ok) {
-                const text = await resp.text();
-                throw new Error(text || `Server returned ${resp.status}`);
+            const res = await fetch(endpoint, { method: 'POST', body: form });
+            if (!res.ok) {
+                const text = await res.text().catch(() => null);
+                throw new Error(text || `Server error ${res.status}`);
             }
-
-            const contentType = resp.headers.get('Content-Type') || '';
-            const filenameHeader = resp.headers.get('X-Filename') || '';
-            const blob = await resp.blob();
-            const name = filenameHeader || deriveFilenameForTool(toolType, files);
-            downloadBlob(blob, name);
-            showNotification('Server processing complete. File downloaded.', 'success');
+            const filenameHeader = res.headers.get('X-Filename') || '';
+            const blob = await res.blob();
+            const filename = filenameHeader || deriveFilenameForTool(toolType, files);
+            downloadBlob(blob, filename);
+            showNotification('Server processing complete. Download started.', 'success');
         } catch (err) {
             console.error(err);
-            showNotification('Server processing failed: ' + err.message, 'error');
+            showNotification('Server processing failed: ' + (err.message || err), 'error');
         } finally {
             hideProgress(toolCard);
         }
     }
 
-    // -------------------------
-    // Client-side helpers
-    // -------------------------
-    async function mergePDFs(files, toolCard) {
-        // Merge PDFs using pdf-lib
-        showProgress(toolCard, 'Merging PDFs...');
-        const mergedPdf = await PDFLib.PDFDocument.create();
+    // ---------------- Client-side Implementation Helpers ----------------
 
-        for (const file of files) {
+    async function mergePDFs(files, toolCard) {
+        showProgress(toolCard, 'Merging PDFs...');
+        const outDoc = await PDFLib.PDFDocument.create();
+
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
             const arrayBuffer = await file.arrayBuffer();
-            // Try to load. If encrypted, PDF-Lib may throw.
-            let pdfDoc;
+            let srcDoc;
             try {
-                pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
+                srcDoc = await PDFLib.PDFDocument.load(arrayBuffer);
             } catch (e) {
-                console.warn('Failed to load one PDF (possibly encrypted):', file.name, e);
-                throw new Error(`Cannot load ${file.name}. It may be password-protected.`);
+                throw new Error(`Failed to load ${file.name}. It may be password-protected or corrupted.`);
             }
-            const copiedPages = await mergedPdf.copyPages(pdfDoc, pdfDoc.getPageIndices());
-            copiedPages.forEach(p => mergedPdf.addPage(p));
-            // update progress (approx)
-            updateProgress(toolCard, null, {increment: Math.floor(80 / files.length)});
+            const pages = await outDoc.copyPages(srcDoc, srcDoc.getPageIndices());
+            pages.forEach(p => outDoc.addPage(p));
+            updateProgress(toolCard, null, { increment: Math.max(1, Math.floor(80 / files.length)) });
+            await new Promise(r => setTimeout(r, 30)); // yield to UI thread
         }
 
-        const mergedBytes = await mergedPdf.save();
+        const mergedBytes = await outDoc.save();
         updateProgress(toolCard, 100);
-        return new Blob([mergedBytes], {type: 'application/pdf'});
+        return new Blob([mergedBytes], { type: 'application/pdf' });
     }
 
     async function splitPDF(file, toolCard) {
         showProgress(toolCard, 'Splitting PDF...');
-        const arrayBuffer = await file.arrayBuffer();
-        let pdfDoc;
+        const buf = await file.arrayBuffer();
+        let doc;
         try {
-            pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
+            doc = await PDFLib.PDFDocument.load(buf);
         } catch (e) {
-            throw new Error('Unable to load PDF. It may be encrypted or corrupted.');
+            throw new Error('Unable to load PDF for splitting (maybe encrypted).');
         }
-
-        const totalPages = pdfDoc.getPageCount();
-        for (let i = 0; i < totalPages; i++) {
+        const pageCount = doc.getPageCount();
+        for (let i = 0; i < pageCount; i++) {
             const newDoc = await PDFLib.PDFDocument.create();
-            const [copied] = await newDoc.copyPages(pdfDoc, [i]);
+            const [copied] = await newDoc.copyPages(doc, [i]);
             newDoc.addPage(copied);
             const bytes = await newDoc.save();
-            const name = `${stripExtension(file.name)}_page_${i + 1}.pdf`;
-            downloadBlob(new Blob([bytes], {type: 'application/pdf'}), name);
-            updateProgress(toolCard, null, {increment: Math.floor(90 / totalPages)});
-            // small pause to give browser breathing room on large PDFs
-            await new Promise(r => setTimeout(r, 50));
+            const name = `${stripExtension(file.name)}_page_${i+1}.pdf`;
+            downloadBlob(new Blob([bytes], { type: 'application/pdf' }), name);
+            updateProgress(toolCard, null, { increment: Math.floor(90 / pageCount) });
+            await new Promise(r => setTimeout(r, 40)); // small pause to keep UI responsive
         }
         updateProgress(toolCard, 100);
     }
 
     async function compressPDF(file, toolCard) {
         showProgress(toolCard, 'Compressing (best-effort)...');
-        // Note: true PDF "compression" (re-encoding images, removing unused objects) requires specialized libraries.
-        // We'll re-save with pdf-lib which sometimes yields smaller size; this is best-effort.
-        const arrayBuffer = await file.arrayBuffer();
-        let pdfDoc;
+        // Best-effort: re-saving the PDF after copying pages can sometimes reduce overhead.
+        const buf = await file.arrayBuffer();
+        let doc;
         try {
-            pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
+            doc = await PDFLib.PDFDocument.load(buf);
         } catch (e) {
             throw new Error('Unable to load PDF for compression.');
         }
-        // Basic strategy: copy pages to a new document to remove some overhead
-        const out = await PDFLib.PDFDocument.create();
-        const indices = pdfDoc.getPageIndices();
-        const copied = await out.copyPages(pdfDoc, indices);
-        copied.forEach(p => out.addPage(p));
-        const newBytes = await out.save(); // pdf-lib's save is best-effort
+        const outDoc = await PDFLib.PDFDocument.create();
+        const indices = doc.getPageIndices();
+        const copied = await outDoc.copyPages(doc, indices);
+        copied.forEach(p => outDoc.addPage(p));
+        const newBytes = await outDoc.save();
         updateProgress(toolCard, 100);
-        // If result is larger, return original and notify user
+        // If bigger, warn user but still return blob
         if (newBytes.byteLength >= file.size) {
-            showNotification('Compression had no effect; original file is smaller or same size.', 'info');
+            showNotification('Note: re-saved PDF is not smaller than original (best-effort)', 'info', 3500);
         }
-        return new Blob([newBytes], {type: 'application/pdf'});
+        return new Blob([newBytes], { type: 'application/pdf' });
     }
 
     async function imagesToPDF(files, toolCard) {
         showProgress(toolCard, 'Creating PDF from images...');
-        // Use jsPDF to create a PDF from images
         const { jsPDF } = window.jspdf;
-        const doc = new jsPDF(); // default A4 portrait
+        const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const pageHeight = doc.internal.pageSize.getHeight();
+
         for (let i = 0; i < files.length; i++) {
             const file = files[i];
             const dataUrl = await fileToDataURL(file);
-            // create an image object to get dimensions
             const img = await loadImage(dataUrl);
-            const pageWidth = doc.internal.pageSize.getWidth();
-            const pageHeight = doc.internal.pageSize.getHeight();
-            // calculate aspect fit
-            const imgRatio = img.width / img.height;
-            const pageRatio = pageWidth / pageHeight;
-            let w, h;
-            if (imgRatio > pageRatio) {
-                w = pageWidth - 20;
-                h = w / imgRatio;
-            } else {
-                h = pageHeight - 20;
-                w = h * imgRatio;
+            // fit into page with margins
+            const margin = 20;
+            const maxW = pageWidth - margin * 2;
+            const maxH = pageHeight - margin * 2;
+            let w = img.width;
+            let h = img.height;
+            // scale to fit
+            if (w > maxW || h > maxH) {
+                const scale = Math.min(maxW / w, maxH / h);
+                w *= scale; h *= scale;
             }
             const x = (pageWidth - w) / 2;
             const y = (pageHeight - h) / 2;
             if (i > 0) doc.addPage();
-            // jsPDF addImage requires image type; dataUrl already includes type
-            doc.addImage(dataUrl, 'JPEG', x, y, w, h);
-            updateProgress(toolCard, null, {increment: Math.floor(90 / files.length)});
+            const imgType = getImageTypeFromDataUrl(dataUrl);
+            doc.addImage(dataUrl, imgType, x, y, w, h);
+            updateProgress(toolCard, null, { increment: Math.floor(90 / files.length) });
+            await new Promise(r => setTimeout(r, 30));
         }
-        const pdfBlob = doc.output('blob');
         updateProgress(toolCard, 100);
-        return pdfBlob;
+        return doc.output('blob');
     }
 
-    // -------------------------
-    // Utilities and UI helpers
-    // -------------------------
+    // ---------------- UI helpers ----------------
+
     function showProgress(toolCard, message = 'Processing...') {
         const progressBar = toolCard.querySelector('.progress-bar');
         const fill = toolCard.querySelector('.progress-fill');
         progressBar.style.display = 'block';
         fill.style.width = '0%';
-        fill.dataset.current = 0;
+        fill.dataset.current = '0';
         if (!toolCard._progressInterval) {
             toolCard._progressInterval = setInterval(() => {
                 let cur = parseInt(fill.dataset.current || '0', 10);
-                if (cur < 10) {
-                    cur += 1;
-                } else if (cur < 70) {
-                    cur += 2;
-                } else if (cur < 95) {
-                    cur += 1;
-                }
+                if (cur < 10) cur += 1;
+                else if (cur < 70) cur += 2;
+                else if (cur < 95) cur += 1;
                 if (cur > 99) cur = 99;
                 fill.style.width = cur + '%';
                 fill.dataset.current = String(cur);
-            }, 400);
+            }, 350);
         }
-        // set small status notification (not blocking)
-        showNotification(message, 'info', 2000);
+        // show small notification
+        showNotification(message, 'info', 1200);
     }
 
     function updateProgress(toolCard, absolutePercent = null, opts = {}) {
@@ -444,7 +665,7 @@
     function showNotification(msg, type = 'info', autoHideMs = 3000) {
         const n = document.createElement('div');
         n.className = `notification ${type}`;
-        n.innerHTML = `<strong>${msg}</strong>`;
+        n.innerHTML = `<strong>${escapeHtml(msg)}</strong>`;
         document.body.appendChild(n);
         requestAnimationFrame(() => n.classList.add('show'));
         if (autoHideMs) {
@@ -458,7 +679,7 @@
     function downloadBlob(blob, filename) {
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
-        link.download = filename;
+        link.download = filename || 'download';
         document.body.appendChild(link);
         link.click();
         setTimeout(() => {
@@ -481,25 +702,20 @@
 
     function deriveFilenameForTool(toolType, files) {
         switch (toolType) {
-            case 'word-to-pdf':
-                return stripExtension(files[0].name) + '.pdf';
-            case 'excel-to-pdf':
-                return stripExtension(files[0].name) + '.pdf';
-            case 'pdf-to-word':
-                return stripExtension(files[0].name) + '.docx';
-            case 'pdf-to-excel':
-                return stripExtension(files[0].name) + '.xlsx';
-            default:
-                return 'output.pdf';
+            case 'word-to-pdf': return stripExtension(files[0].name) + '.pdf';
+            case 'excel-to-pdf': return stripExtension(files[0].name) + '.pdf';
+            case 'pdf-to-word': return stripExtension(files[0].name) + '.docx';
+            case 'pdf-to-excel': return stripExtension(files[0].name) + '.xlsx';
+            default: return 'output.pdf';
         }
     }
 
     function fileToDataURL(file) {
         return new Promise((res, rej) => {
-            const reader = new FileReader();
-            reader.onload = () => res(reader.result);
-            reader.onerror = rej;
-            reader.readAsDataURL(file);
+            const r = new FileReader();
+            r.onload = () => res(r.result);
+            r.onerror = rej;
+            r.readAsDataURL(file);
         });
     }
 
@@ -512,16 +728,31 @@
         });
     }
 
-    // small helper to format bytes — not used widely but handy for future
+    function getImageTypeFromDataUrl(dataUrl) {
+        if (!dataUrl) return 'JPEG';
+        if (dataUrl.startsWith('data:image/png')) return 'PNG';
+        if (dataUrl.startsWith('data:image/webp')) return 'WEBP';
+        return 'JPEG';
+    }
+
     function bytesToSize(bytes) {
         if (bytes === 0) return '0 B';
         const k = 1024;
-        const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+        const sizes = ['B','KB','MB','GB','TB'];
         const i = Math.floor(Math.log(bytes) / Math.log(k));
         return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     }
 
-    // Expose some functions globally for debug/testing
+    // basic escaping for messages rendered into DOM
+    function escapeHtml(s) {
+        return String(s)
+            .replace(/&/g, '&amp;')
+            .replace(/"/g, '&quot;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+    }
+
+    // Expose some functions for debugging
     window._pdfTools = {
         selectedFiles,
         mergePDFs,
@@ -529,4 +760,8 @@
         compressPDF,
         imagesToPDF
     };
-</script>
+
+    </script>
+</body>
+</html>
+
