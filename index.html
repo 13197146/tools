@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>YouTube Downloader</title>
+    <title>YouTube Audio Downloader</title>
     <style>
         * {
             margin: 0;
@@ -12,8 +12,9 @@
         }
 
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: #000;
+            color: #fff;
             min-height: 100vh;
             display: flex;
             justify-content: center;
@@ -22,19 +23,29 @@
         }
 
         .container {
-            background: white;
+            background: #111;
+            border: 1px solid #333;
+            border-radius: 12px;
             padding: 40px;
-            border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.1);
             width: 100%;
             max-width: 500px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
         }
 
-        h1 {
+        .header {
             text-align: center;
-            color: #333;
             margin-bottom: 30px;
-            font-size: 2em;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            color: #888;
+            font-size: 14px;
         }
 
         .form-group {
@@ -44,47 +55,98 @@
         label {
             display: block;
             margin-bottom: 8px;
-            color: #555;
+            font-size: 14px;
             font-weight: 500;
+            color: #ccc;
         }
 
         input[type="url"], select {
             width: 100%;
             padding: 12px 16px;
-            border: 2px solid #e1e5e9;
-            border-radius: 10px;
-            font-size: 16px;
-            transition: border-color 0.3s ease;
+            background: #222;
+            border: 1px solid #444;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 14px;
+            transition: border-color 0.2s ease;
         }
 
         input[type="url"]:focus, select:focus {
             outline: none;
-            border-color: #667eea;
+            border-color: #666;
         }
 
-        button {
+        input[type="url"]::placeholder {
+            color: #666;
+        }
+
+        .format-options {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-top: 8px;
+        }
+
+        .format-option {
+            padding: 12px;
+            background: #222;
+            border: 1px solid #444;
+            border-radius: 8px;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.2s ease;
+        }
+
+        .format-option:hover {
+            background: #333;
+            border-color: #555;
+        }
+
+        .format-option.selected {
+            background: #333;
+            border-color: #666;
+            color: #fff;
+        }
+
+        .format-option input[type="radio"] {
+            display: none;
+        }
+
+        .format-title {
+            font-weight: 600;
+            font-size: 14px;
+            margin-bottom: 4px;
+        }
+
+        .format-desc {
+            font-size: 12px;
+            color: #888;
+        }
+
+        .download-btn {
             width: 100%;
             padding: 14px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
+            background: #fff;
+            color: #000;
             border: none;
-            border-radius: 10px;
-            font-size: 18px;
+            border-radius: 8px;
+            font-size: 14px;
             font-weight: 600;
             cursor: pointer;
-            transition: all 0.3s ease;
+            transition: all 0.2s ease;
+            margin-top: 10px;
         }
 
-        button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        .download-btn:hover:not(:disabled) {
+            background: #f0f0f0;
+            transform: translateY(-1px);
         }
 
-        button:disabled {
-            background: #ccc;
+        .download-btn:disabled {
+            background: #333;
+            color: #666;
             cursor: not-allowed;
             transform: none;
-            box-shadow: none;
         }
 
         .loading {
@@ -94,13 +156,13 @@
         }
 
         .spinner {
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #667eea;
+            width: 24px;
+            height: 24px;
+            border: 2px solid #333;
+            border-top: 2px solid #fff;
             border-radius: 50%;
-            width: 30px;
-            height: 30px;
+            margin: 0 auto 12px;
             animation: spin 1s linear infinite;
-            margin: 0 auto 10px;
         }
 
         @keyframes spin {
@@ -108,56 +170,97 @@
             100% { transform: rotate(360deg); }
         }
 
+        .loading-text {
+            color: #888;
+            font-size: 14px;
+        }
+
         .result {
             margin-top: 20px;
-            padding: 15px;
-            border-radius: 10px;
+            padding: 16px;
+            border-radius: 8px;
             display: none;
         }
 
-        .success {
-            background: #d4edda;
-            border: 1px solid #c3e6cb;
-            color: #155724;
+        .result.success {
+            background: #1a2e1a;
+            border: 1px solid #2d5a2d;
+            color: #4ade80;
         }
 
-        .error {
-            background: #f8d7da;
-            border: 1px solid #f5c6cb;
-            color: #721c24;
+        .result.error {
+            background: #2e1a1a;
+            border: 1px solid #5a2d2d;
+            color: #f87171;
+        }
+
+        .result h3 {
+            font-size: 16px;
+            margin-bottom: 12px;
+        }
+
+        .result-info {
+            margin-bottom: 16px;
+        }
+
+        .result-info div {
+            margin-bottom: 4px;
+            font-size: 14px;
         }
 
         .download-link {
             display: inline-block;
-            margin-top: 10px;
             padding: 10px 20px;
-            background: #28a745;
-            color: white;
+            background: #4ade80;
+            color: #000;
             text-decoration: none;
-            border-radius: 5px;
-            transition: background 0.3s ease;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 14px;
+            transition: background 0.2s ease;
         }
 
         .download-link:hover {
-            background: #218838;
+            background: #22c55e;
+        }
+
+        .error-details {
+            margin-top: 12px;
+            padding: 12px;
+            background: #1a1a1a;
+            border-radius: 6px;
+            font-size: 12px;
+            color: #999;
+            word-break: break-word;
         }
 
         .url-examples {
-            margin-top: 10px;
+            margin-top: 8px;
             font-size: 12px;
             color: #666;
+            line-height: 1.4;
         }
 
-        .url-examples strong {
-            display: block;
-            margin-bottom: 5px;
+        @media (max-width: 480px) {
+            .container {
+                padding: 30px 20px;
+                margin: 10px;
+            }
+            
+            .format-options {
+                grid-template-columns: 1fr;
+                gap: 8px;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🎵 YouTube Downloader</h1>
-        
+        <div class="header">
+            <h1>🎵 YouTube Audio Downloader</h1>
+            <p>Download audio from YouTube videos in MP3 or M4A format</p>
+        </div>
+
         <form id="downloadForm">
             <div class="form-group">
                 <label for="youtubeUrl">YouTube URL:</label>
@@ -167,61 +270,84 @@
                     name="youtubeUrl" 
                     placeholder="https://www.youtube.com/watch?v=..." 
                     required
+                    autocomplete="off"
                 >
                 <div class="url-examples">
-                    <strong>Supported formats:</strong>
-                    https://www.youtube.com/watch?v=VIDEO_ID<br>
-                    https://youtu.be/VIDEO_ID<br>
-                    https://youtube.com/embed/VIDEO_ID
+                    Supports: youtube.com/watch?v=ID • youtu.be/ID • youtube.com/embed/ID
                 </div>
             </div>
 
             <div class="form-group">
-                <label for="format">Format:</label>
-                <select id="format" name="format" required>
-                    <option value="">Select format</option>
-                    <option value="mp3">MP3 (Audio only)</option>
-                    <option value="m4a">M4A (Audio only)</option>
-                    <option value="mp4">MP4 (Video)</option>
-                </select>
+                <label>Audio Format:</label>
+                <div class="format-options">
+                    <label class="format-option" for="mp3">
+                        <input type="radio" id="mp3" name="format" value="mp3" required>
+                        <div class="format-title">MP3</div>
+                        <div class="format-desc">Most compatible</div>
+                    </label>
+                    <label class="format-option" for="m4a">
+                        <input type="radio" id="m4a" name="format" value="m4a" required>
+                        <div class="format-title">M4A</div>
+                        <div class="format-desc">Higher quality</div>
+                    </label>
+                </div>
             </div>
 
-            <button type="submit" id="downloadBtn">Download</button>
+            <button type="submit" class="download-btn" id="downloadBtn">
+                Download Audio
+            </button>
         </form>
 
         <div class="loading" id="loading">
             <div class="spinner"></div>
-            <p>Processing your request...</p>
+            <div class="loading-text">Processing your request...</div>
         </div>
 
         <div class="result" id="result"></div>
     </div>
 
     <script>
-        const form = document.getElementById('downloadForm');
-        const loadingDiv = document.getElementById('loading');
-        const resultDiv = document.getElementById('result');
-        const downloadBtn = document.getElementById('downloadBtn');
+        // Handle format selection visual feedback
+        document.querySelectorAll('input[name="format"]').forEach(radio => {
+            radio.addEventListener('change', function() {
+                document.querySelectorAll('.format-option').forEach(option => {
+                    option.classList.remove('selected');
+                });
+                this.closest('.format-option').classList.add('selected');
+            });
+        });
 
-        form.addEventListener('submit', async (e) => {
+        // Auto-clean and validate YouTube URLs
+        document.getElementById('youtubeUrl').addEventListener('input', function(e) {
+            let url = e.target.value.trim();
+            
+            // If user just pastes a video ID, convert to full URL
+            if (url.match(/^[a-zA-Z0-9_-]{11}$/)) {
+                e.target.value = `https://www.youtube.com/watch?v=${url}`;
+            }
+        });
+
+        // Handle form submission
+        document.getElementById('downloadForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             
             const url = document.getElementById('youtubeUrl').value.trim();
-            const format = document.getElementById('format').value;
+            const format = document.querySelector('input[name="format"]:checked')?.value;
+            
+            if (!url || !format) {
+                showError('Please fill in all fields');
+                return;
+            }
 
             // Reset UI
-            resultDiv.style.display = 'none';
-            resultDiv.className = 'result';
-            resultDiv.innerHTML = '';
+            resetUI();
             
             // Show loading
-            loadingDiv.style.display = 'block';
-            downloadBtn.disabled = true;
-            downloadBtn.textContent = 'Processing...';
+            showLoading(true);
+            
+            console.log('🚀 Starting download request:', { url, format });
 
             try {
-                console.log('Sending request with:', { url, format });
-
                 const response = await fetch('/api/download', {
                     method: 'POST',
                     headers: {
@@ -230,77 +356,109 @@
                     body: JSON.stringify({ url, format })
                 });
 
-                console.log('Response status:', response.status);
-                console.log('Response headers:', Object.fromEntries(response.headers));
+                console.log('📡 Response status:', response.status);
+                console.log('📡 Response headers:', Object.fromEntries(response.headers));
 
-                // Get response as text first to see what we actually received
+                // Get response as text first to handle both JSON and HTML responses
                 const responseText = await response.text();
-                console.log('Raw response:', responseText);
+                console.log('📄 Raw response (first 500 chars):', responseText.substring(0, 500));
 
                 let data;
                 try {
                     data = JSON.parse(responseText);
+                    console.log('✅ Parsed response data:', data);
                 } catch (parseError) {
-                    console.error('JSON Parse Error:', parseError);
-                    throw new Error(`Invalid response from server. Expected JSON but got: ${responseText.substring(0, 100)}...`);
+                    console.error('❌ JSON parse error:', parseError);
+                    throw new Error(`Server returned invalid response: ${responseText.substring(0, 100)}...`);
                 }
 
-                console.log('Parsed response data:', data);
+                showLoading(false);
 
                 if (!response.ok) {
-                    throw new Error(data.error || `HTTP error! status: ${response.status}`);
+                    throw new Error(data.error || `Request failed with status ${response.status}`);
                 }
 
-                // Hide loading
-                loadingDiv.style.display = 'none';
-                
                 // Show success result
-                resultDiv.className = 'result success';
-                resultDiv.innerHTML = `
-                    <h3>✅ Success!</h3>
-                    <p><strong>Title:</strong> ${data.title || 'Unknown'}</p>
-                    <p><strong>Duration:</strong> ${data.duration || 'Unknown'}</p>
-                    ${data.download_url ? 
-                        `<a href="${data.download_url}" class="download-link" download>📥 Download ${format.toUpperCase()}</a>` : 
-                        '<p>⚠️ Download URL not available in response</p>'
-                    }
-                    <details style="margin-top: 10px;">
-                        <summary style="cursor: pointer;">Show raw response</summary>
-                        <pre style="background: #f8f9fa; padding: 10px; border-radius: 5px; overflow-x: auto; font-size: 12px;">${JSON.stringify(data, null, 2)}</pre>
-                    </details>
-                `;
-                resultDiv.style.display = 'block';
+                showSuccess(data, format);
 
             } catch (error) {
-                console.error('Error:', error);
-                
-                // Hide loading
-                loadingDiv.style.display = 'none';
-                
-                // Show error result
-                resultDiv.className = 'result error';
-                resultDiv.innerHTML = `
-                    <h3>❌ Error</h3>
-                    <p>${error.message}</p>
-                    <p>Please check the console for more details.</p>
-                `;
-                resultDiv.style.display = 'block';
-            } finally {
-                // Reset button
-                downloadBtn.disabled = false;
-                downloadBtn.textContent = 'Download';
+                console.error('💥 Download error:', error);
+                showLoading(false);
+                showError(error.message);
             }
         });
 
-        // Auto-detect and clean YouTube URLs
-        document.getElementById('youtubeUrl').addEventListener('input', (e) => {
-            let url = e.target.value.trim();
+        function showLoading(show) {
+            const loading = document.getElementById('loading');
+            const btn = document.getElementById('downloadBtn');
             
-            // If user pastes just a video ID, convert it to full URL
-            if (url.match(/^[a-zA-Z0-9_-]{11}$/)) {
-                e.target.value = `https://www.youtube.com/watch?v=${url}`;
+            if (show) {
+                loading.style.display = 'block';
+                btn.disabled = true;
+                btn.textContent = 'Processing...';
+            } else {
+                loading.style.display = 'none';
+                btn.disabled = false;
+                btn.textContent = 'Download Audio';
             }
-        });
+        }
+
+        function resetUI() {
+            const result = document.getElementById('result');
+            result.style.display = 'none';
+            result.className = 'result';
+            result.innerHTML = '';
+        }
+
+        function showSuccess(data, format) {
+            const result = document.getElementById('result');
+            
+            result.className = 'result success';
+            result.innerHTML = `
+                <h3>✅ Download Ready!</h3>
+                ${data.title ? `
+                    <div class="result-info">
+                        <div><strong>Title:</strong> ${escapeHtml(data.title)}</div>
+                        ${data.duration ? `<div><strong>Duration:</strong> ${data.duration}</div>` : ''}
+                        ${data.size ? `<div><strong>Size:</strong> ${data.size}</div>` : ''}
+                    </div>
+                ` : ''}
+                ${data.download_url ? 
+                    `<a href="${data.download_url}" class="download-link" download target="_blank">
+                        📥 Download ${format.toUpperCase()}
+                    </a>` : 
+                    '<div style="color: #f59e0b;">⚠️ Download link not available in response</div>'
+                }
+            `;
+            result.style.display = 'block';
+
+            console.log('🎉 Download successful!');
+        }
+
+        function showError(message) {
+            const result = document.getElementById('result');
+            
+            result.className = 'result error';
+            result.innerHTML = `
+                <h3>❌ Error</h3>
+                <div>${escapeHtml(message)}</div>
+                <div class="error-details">
+                    Check the browser console (F12) for more details
+                </div>
+            `;
+            result.style.display = 'block';
+
+            console.error('💥 Error shown to user:', message);
+        }
+
+        function escapeHtml(unsafe) {
+            return unsafe
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
     </script>
 </body>
 </html>
